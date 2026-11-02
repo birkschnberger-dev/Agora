@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'de.agora.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'de.agora.app'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // Fester Schlüssel, damit spätere APKs als Update über die alte installiert werden können.
+    signingConfigs {
+        agora {
+            storeFile file('agora.jks')
+            storePassword 'agora123'
+            keyAlias 'agora'
+            keyPassword 'agora123'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.agora
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.agora
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

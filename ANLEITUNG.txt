@@ -1,0 +1,37 @@
+AGORA - APK BAUEN LASSEN (KOSTENLOS)
+====================================
+
+Du brauchst: einen Computer mit Browser und ein kostenloses GitHub-Konto.
+Es muss nichts installiert werden, und es gibt keinen API-Key und keine Kosten.
+
+1. GitHub-Konto anlegen (github.com), dann oben rechts "+" > "New repository".
+   Name: agora   -   Sichtbarkeit: Public   -   "Create repository".
+
+2. Diese ZIP-Datei entpacken. Im neuen Repository auf "uploading an existing file"
+   klicken und den GANZEN Inhalt des entpackten Ordners hineinziehen
+   (auch den versteckten Ordner ".github"). Unten "Commit changes" klicken.
+
+3. Reiter "Actions" öffnen: "APK bauen" startet von selbst (etwa 5 Minuten).
+   Ein grüner Haken heißt: fertig.
+
+4. APK aufs Handy: Im Repository rechts auf "Releases" > "Agora APK" >
+   Agora.apk herunterladen und antippen. Android fragt einmal, ob Installationen
+   aus dieser Quelle erlaubt sind: erlauben.
+
+So kommen neue Inhalte
+- 33 Karten sind fest eingebaut und funktionieren auch ohne Internet.
+- Jeden Tag lädt die App "Heute in der Geschichte" aus der Wikipedia nach.
+- Am Ende des Feeds lädt sie von selbst weitere Karten zu rund 180 Themen aus
+  Geschichte, Wirtschaft und Philosophie nach, mit Bild und Link zum Artikel.
+- Alles kommt direkt von deinem Handy aus der Wikipedia. Das ist kostenlos, braucht
+  keinen Schlüssel und kein Konto.
+- Eigene Karten-Pakete: Eine Datei cards.json im Repository ersetzen. Die App holt
+  sie beim Start, ohne dass die APK neu gebaut werden muss.
+
+Hinweise
+- Bei einem Fehler im Reiter "Actions" erscheint ein rotes Kreuz. Kopiere dann den
+  Text aus dem roten Schritt und schick ihn mir.
+- Texte und Bilder aus der Wikipedia stehen unter der Lizenz CC BY-SA. Jede dieser
+  Karten verlinkt deshalb auf den Originalartikel.
+- Der Signierschlüssel liegt im Projekt und ist öffentlich. Das ist für die eigene
+  App in Ordnung, die App sollte so aber nicht im Play Store veröffentlicht werden.

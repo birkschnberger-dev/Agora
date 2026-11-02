@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Agora</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500&display=swap">
+<style>
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+
+/* Layout: ein Vollbild-Feed wie bei Instagram, jede Karte genau eine Bildschirmhöhe, oben Kategorie-Chips.
+   Jede Kategorie hat eine eigene Farbfamilie (Bronze, Grünspan, Indigo); die Grafik jeder Karte wird aus ihrer ID erzeugt. */
+:root {
+  --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
+  --font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Spline Sans Mono', ui-monospace, Menlo, Consolas, monospace;
+  --bg: #0c0f14;
+  --fg: #edeef0;
+  --fg2: #a7aeba;
+  --line: rgba(255, 255, 255, 0.11);
+  --chip: #181e27;
+  --chip-on: #edeef0;
+  --chip-on-fg: #0c0f14;
+  --card-s: 42%;
+  --card-l1: 19%;
+  --card-l2: 10%;
+  --art-s: 68%;
+  --art-l: 62%;
+  --heart: #ff5c7a;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #e9ecf1;
+    --fg: #12151b;
+    --fg2: #4b5463;
+    --line: rgba(0, 0, 0, 0.13);
+    --chip: #dbe0e8;
+    --chip-on: #12151b;
+    --chip-on-fg: #ffffff;
+    --card-s: 52%;
+    --card-l1: 91%;
+    --card-l2: 83%;
+    --art-s: 62%;
+    --art-l: 33%;
+    --heart: #d62f52;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #e9ecf1;
+  --fg: #12151b;
+  --fg2: #4b5463;
+  --line: rgba(0, 0, 0, 0.13);
+  --chip: #dbe0e8;
+  --chip-on: #12151b;
+  --chip-on-fg: #ffffff;
+  --card-s: 52%;
+  --card-l1: 91%;
+  --card-l2: 83%;
+  --art-s: 62%;
+  --art-l: 33%;
+  --heart: #d62f52;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid hsl(var(--h, 210) 80% 60%); outline-offset: 2px; }
+
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 10px; }
+.brand { margin: 0; font: 400 30px/1 var(--font-display); letter-spacing: -0.01em; }
+.stat { font: 500 12px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--fg2); text-transform: uppercase; }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-block: 10px 10px; scrollbar-width: none; flex: 0 0 auto; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: 0 0 auto; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--chip); font-weight: 600; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap;
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--h) 70% 55%); }
+.chip[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-fg); border-color: transparent; }
+.chip .n { font: 500 12px var(--font-mono); opacity: 0.7; }
+
+.feed {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
+}
+.feed::-webkit-scrollbar { display: none; }
+.slide { height: 100%; padding-block: 5px; scroll-snap-align: start; scroll-snap-stop: always; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.card {
+  position: relative; height: 100%; border-radius: 22px; overflow: hidden;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line);
+  background: linear-gradient(165deg, hsl(var(--h) var(--card-s) var(--card-l1)), hsl(calc(var(--h) + 24) calc(var(--card-s) - 10%) var(--card-l2)));
+}
+.art { position: relative; flex: 0 1 44%; min-height: 120px; color: hsl(var(--h) var(--art-s) var(--art-l)); transition: flex-basis 0.3s ease; }
+.svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.anchor {
+  position: absolute; left: 18px; right: 18px; bottom: 40px;
+  font-family: var(--font-display); line-height: 0.95; letter-spacing: -0.01em; color: var(--fg); text-wrap: balance;
+}
+.anchor.xl { font-size: clamp(64px, 24vw, 104px); }
+.anchor.l { font-size: clamp(48px, 17vw, 80px); }
+.anchor.m { font-size: clamp(38px, 13vw, 62px); }
+.anchor.s { font-size: clamp(30px, 10vw, 48px); }
+.open .art { flex-basis: 14%; min-height: 70px; }
+.open .anchor { display: none; }
+
+.txt { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 76px 18px 18px; overflow-y: auto; scrollbar-width: none; }
+.txt::-webkit-scrollbar { display: none; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font: 500 12px/1.3 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg2); }
+.meta .cat { color: hsl(var(--h) var(--art-s) var(--art-l)); }
+h2 { margin: 0; font: 400 clamp(24px, 7vw, 30px)/1.1 var(--font-display); text-wrap: balance; }
+.body { margin: 0; font-size: 16px; line-height: 1.55; opacity: 0.93; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.open .body { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.more { align-self: flex-start; background: none; border: 0; padding: 4px 0; min-height: 32px; font-weight: 700; font-size: 14px; color: hsl(var(--h) var(--art-s) var(--art-l)); cursor: pointer; }
+.merke { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; color: var(--fg2); }
+.merke b { margin-right: 8px; font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: hsl(var(--h) var(--art-s) var(--art-l)); }
+
+.rail { position: absolute; right: 10px; bottom: 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.rail button {
+  width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer;
+  background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--fg); display: grid; place-items: center;
+}
+.rail svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rail .on svg { fill: currentColor; }
+.rail .like.on { color: var(--heart); }
+.rail .save.on { color: hsl(var(--h) var(--art-s) var(--art-l)); }
+
+.burst { position: absolute; width: 96px; height: 96px; margin: -48px 0 0 -48px; pointer-events: none; color: var(--heart); animation: pop 0.7s ease-out forwards; }
+.burst svg { width: 100%; height: 100%; fill: currentColor; }
+@keyframes pop { 0% { transform: scale(0.3); opacity: 0; } 25% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1.4) translateY(-18px); opacity: 0; } }
+
+.endcard { align-items: flex-start; justify-content: center; gap: 14px; padding: 28px 24px; }
+.endcard h2 { font-size: clamp(28px, 8vw, 36px); }
+.endcard p { margin: 0; color: var(--fg2); max-width: 36ch; }
+.btn {
+  min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid transparent; cursor: pointer;
+  font-weight: 700; font-size: 16px; background: var(--chip-on); color: var(--chip-on-fg);
+}
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn[disabled] { opacity: 0.55; cursor: default; }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.status { min-height: 1.5em; font-size: 14px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 20;
+  background: var(--chip-on); color: var(--chip-on-fg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+  max-width: calc(100% - 32px); text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art { transition: none; }
+  .burst { animation: none; opacity: 0; }
+}
+
+.photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; filter: saturate(0.85); }
+.art.has-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 25%, hsl(var(--h) var(--card-s) var(--card-l1)) 100%); }
+.anchor { z-index: 1; }
+.src { color: hsl(var(--h) var(--art-s) var(--art-l)); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 class="brand">Agora</h1>
+  <span class="stat" id="stat" aria-live="polite"></span>
+</header>
+<nav class="chips" id="chips" aria-label="Kategorien"></nav>
+<main class="feed" id="feed" aria-label="Karten"></main>
+<div class="toast" id="toast" hidden role="status"></div>
+<script>
+(function () {
+  'use strict';
+
+  var CATS = {
+    g: { n: 'Geschichte', h: 32 },
+    w: { n: 'Wirtschaft', h: 164 },
+    p: { n: 'Philosophie', h: 262 }
+  };
+
+  var BASE = [{"id":"g1","c":"g","tag":"Antike · Griechenland","anchor":"490 v. Chr.","title":"Der Lauf, den es so nie gab","body":"Bei Marathon schlugen die Athener 490 v. Chr. ein persisches Heer, das ihnen zahlenmäßig wohl überlegen war. Herodot erwähnt einen Läufer namens Pheidippides, der vor der Schlacht innerhalb von etwa zwei Tagen von Athen nach Sparta lief, rund 240 Kilometer, um Hilfe zu holen. Die berühmte Geschichte vom Läufer, der den Sieg nach Athen trug und tot zusammenbrach, kam erst Jahrhunderte später auf.","merke":"Der Marathonlauf beruht auf einer Legende, der Lauf nach Sparta steht bei Herodot."},{"id":"g2","c":"g","tag":"Antike · Perserkriege","anchor":"480 v. Chr.","title":"Dreihundert, die nicht allein waren","body":"Bei den Thermopylen hielt der spartanische König Leonidas den Pass gegen das persische Heer. Neben seinen 300 Spartiaten kämpften dort einige tausend verbündete Griechen, nach Herodot insgesamt etwa 7.000. Als ein Einheimischer den Persern einen Bergpfad zeigte, schickte Leonidas den Großteil des Heeres weg und blieb mit den Spartiaten und einigen Verbündeten zurück.","merke":"Der Mythos kennt 300 Männer, die Quellen kennen mehr."},{"id":"g3","c":"g","tag":"Rom · späte Republik","anchor":"20 Talente","title":"Caesar, der Entführte, der Befehle gab","body":"Um 75 v. Chr. geriet der junge Caesar in die Hand kilikischer Piraten. Sie verlangten 20 Talente Lösegeld, er fand das zu wenig und forderte 50. Nach Plutarch und Sueton kündigte er den Piraten schon in der Gefangenschaft an, sie später kreuzigen zu lassen, und setzte das nach seiner Freilassung um.","merke":"Die Anekdote stammt aus Quellen, die mehr als hundert Jahre später schrieben."},{"id":"g4","c":"g","tag":"Rom · Kaiserzeit","anchor":"80.000 km","title":"Das erste Datennetz aus Stein","body":"Auf dem Höhepunkt des Imperiums umfasste das römische Fernstraßennetz grob 80.000 Kilometer. Gebaut wurde es für Legionen, doch es trug ebenso Händler, Post und Ideen. Mit Wechselstationen für Pferde und Reisende lieferte die kaiserliche Post Nachrichten in einem Tempo, das für die Antike außergewöhnlich war.","merke":"Straßen machten aus Eroberungen ein zusammenhängendes Reich."},{"id":"g5","c":"g","tag":"Hellenismus · Ägypten","anchor":"3. Jh. v. Chr.","title":"Die Bibliothek brannte nicht an einem Tag","body":"Das Museion mit der berühmten Bibliothek von Alexandria entstand unter den ersten Ptolemäern. Ein einziger großer Brand, der alles vernichtete, ist eher Legende. Bei Caesars Krieg 48 v. Chr. gingen wohl Bücher verloren, doch Historiker sehen vor allem einen langen Niedergang: Unruhen, Kriege und immer weniger Geld für Gelehrte und Abschriften.","merke":"Wissen stirbt selten durch ein Ereignis, meist durch Vernachlässigung."},{"id":"g6","c":"g","tag":"Antike · Wissenschaft","anchor":"7,2°","title":"Wie man die Erde mit einem Stock vermaß","body":"Um 240 v. Chr. hörte Eratosthenes, dass in Syene zur Sommersonnenwende die Sonne senkrecht stand. In Alexandria warf ein Stab dagegen einen Schatten von etwa 7,2 Grad, einem Fünfzigstel eines Kreises. Mit dem Abstand der Städte von rund 5.000 Stadien kam er auf etwa 250.000 Stadien Erdumfang. Je nach Länge des Stadions liegt das erstaunlich nah an den echten 40.000 Kilometern.","merke":"Ein Stab, zwei Städte, eine Idee: und die Erde war vermessen."},{"id":"g7","c":"g","tag":"Antike · Athen","anchor":"430 v. Chr.","title":"Die Seuche von Athen","body":"Im zweiten Jahr des Peloponnesischen Krieges brach in der überfüllten Stadt eine Seuche aus. Thukydides, der sie selbst überlebte, beschrieb Symptome und Verlauf so genau, dass Mediziner bis heute über die Ursache streiten. Auch Perikles starb 429 v. Chr. an der Krankheit.","merke":"Thukydides schrieb einen der ersten genauen Krankheitsberichte der Geschichte."},{"id":"g8","c":"g","tag":"Antike · Zweiter Punischer Krieg","anchor":"218 v. Chr.","title":"Hannibal und die Elefanten über den Alpen","body":"Im Herbst 218 v. Chr. führte Hannibal ein Heer mit Kriegselefanten über die Alpen nach Italien. Der Marsch kostete ihn viele Männer und Tiere. Trotzdem schlug er die Römer 216 v. Chr. bei Cannae so vernichtend, dass Zehntausende fielen. Den Krieg gewann er nicht: Rom hielt durch und siegte am Ende bei Zama.","merke":"Eine taktische Meisterleistung reicht nicht, wenn der Gegner nicht aufgibt."},{"id":"g9","c":"g","tag":"Rom · Kampanien","anchor":"79 n. Chr.","title":"Pompeji, der Tag, der eine Stadt konservierte","body":"Beim Ausbruch des Vesuv im Jahr 79 n. Chr. begruben Asche und Bims Pompeji und Herculaneum. Plinius der Jüngere erlebte es aus der Ferne und schilderte es später in Briefen an Tacitus. Dank der Schichten blieben Häuser, Wandmalereien und sogar Graffiti erhalten, darunter Wahlwerbung und Beschimpfungen an Hauswänden.","merke":"Eine Katastrophe wurde zur besten Zeitkapsel der Antike."},{"id":"g10","c":"g","tag":"Mittelalter · Europa","anchor":"1347","title":"Der Schwarze Tod","body":"Ab 1347 erreichte die Pest über Schiffe die Häfen am Mittelmeer und breitete sich in wenigen Jahren über Europa aus. Schätzungen gehen davon aus, dass bis etwa 1353 ein Drittel bis die Hälfte der Bevölkerung starb. Arbeitskräfte wurden knapp und gefragt, Löhne stiegen, und das Gefüge aus Grundherren und Abhängigen geriet ins Wanken.","merke":"Knappheit macht Arbeit wertvoll, selbst nach einer Katastrophe."},{"id":"g11","c":"g","tag":"Neuzeit · Klima","anchor":"1816","title":"Das Jahr ohne Sommer","body":"Im April 1815 brach der Vulkan Tambora in Indonesien aus, einer der stärksten Ausbrüche seit Jahrtausenden. Asche und Schwefel in der Atmosphäre senkten die Temperaturen. 1816 gab es in Europa und Nordamerika Missernten, Hunger und steigende Preise. In diesem kalten, verregneten Sommer am Genfer See begann Mary Shelley mit ihrer Geschichte von Frankenstein.","merke":"Ein Vulkan am anderen Ende der Welt veränderte Ernten, Preise und Literatur."},{"id":"g12","c":"g","tag":"Rom · Kaiserzeit","anchor":"64 n. Chr.","title":"Hat Nero Rom wirklich angezündet?","body":"Im Juli 64 n. Chr. verwüstete ein Großfeuer weite Teile Roms. Tacitus berichtet, dass Gerüchte Nero beschuldigten und dass dieser die Christen als Sündenböcke bestrafen ließ. Der Kaiser soll laut Tacitus bei Ausbruch des Feuers in Antium gewesen sein. Die Geige gab es übrigens noch gar nicht.","merke":"Das Bild vom geigenden Nero ist ein späterer Mythos."},{"id":"w1","c":"w","tag":"Niederlande · 17. Jahrhundert","anchor":"1637","title":"Die Tulpenblase, die vielleicht nie so groß war","body":"Im Winter 1636/37 stiegen die Preise für Tulpenzwiebeln in den Niederlanden stark an, bis sie im Februar 1637 einbrachen. Die Erzählung vom ganzen Land im Wahn ist aber umstritten. Neuere Forschung, etwa der Historikerin Anne Goldgar, sieht nur einen kleinen Kreis von Händlern betroffen und kaum Menschen, die daran in den Ruin gingen.","merke":"Die berühmteste Blase der Geschichte war womöglich kleiner als ihr Ruf."},{"id":"w2","c":"w","tag":"Renaissance · Augsburg","anchor":"1519","title":"Der Kaiser, den ein Kaufmann bezahlte","body":"Bei der Kaiserwahl 1519 setzte Karl V. riesige Summen ein, um die Kurfürsten für sich zu gewinnen. Den größten Teil lieh ihm Jakob Fugger aus Augsburg, mehr als die Hälfte der Gesamtsumme. Später mahnte Fugger den Kaiser in einem Brief, er hätte die Krone ohne seine Hilfe nicht erhalten.","merke":"Wer Politik finanziert, bekommt Einfluss, das war schon 1519 so."},{"id":"w3","c":"w","tag":"Rom · Geldgeschichte","anchor":"3. Jh. n. Chr.","title":"Wie Rom sein Geld verdünnte","body":"Der römische Denar bestand unter Augustus fast aus reinem Silber. Um Heer und Verwaltung zu bezahlen, ließen spätere Kaiser den Silbergehalt immer weiter senken. Bis zur Mitte des 3. Jahrhunderts war aus der Münze ein Stück mit nur noch wenigen Prozent Silber geworden. Die Preise stiegen, und Diokletian versuchte es 301 mit einem Höchstpreisedikt.","merke":"Münzen verdünnen ist die älteste Art, Geld zu drucken."},{"id":"w4","c":"w","tag":"Deutschland · Weimarer Republik","anchor":"1923","title":"Als ein Brot Milliarden kostete","body":"Im Herbst 1923 verlor die Mark fast täglich dramatisch an Wert. Löhne wurden zweimal am Tag ausgezahlt, damit man sie vor dem nächsten Preissprung ausgeben konnte. Im November 1923 kostete ein US-Dollar rund 4,2 Billionen Mark, ein Brot mehrere hundert Milliarden. Am 15. November kam die Rentenmark und beendete die Inflation.","merke":"Geld ist nur so viel wert wie das Vertrauen in seine Knappheit."},{"id":"w5","c":"w","tag":"London · Frühe Neuzeit","anchor":"1688","title":"Ein Kaffeehaus, das Schiffe versicherte","body":"Um 1688 eröffnete Edward Lloyd in London ein Kaffeehaus nahe dem Hafen. Kapitäne, Reeder und Händler trafen sich dort und tauschten Neuigkeiten über Schiffe aus. Bald setzten Kaufleute ihre Namen unter Schiffsrisiken, daher der Begriff Underwriter. Aus dem Treffpunkt wurde Lloyd’s of London, bis heute ein großer Versicherungsmarkt.","merke":"Versicherung entstand aus Nachrichten, Vertrauen und Unterschriften."},{"id":"w6","c":"w","tag":"Aufklärung · Schottland","anchor":"1776","title":"Die unsichtbare Hand kommt kaum vor","body":"Adam Smiths „Wohlstand der Nationen“ erschien 1776. Das berühmte Bild der unsichtbaren Hand taucht darin nur ein einziges Mal auf, in einem Nebensatz über Investitionen im Inland. Zum Schlagwort für die Marktwirtschaft wurde es erst viel später. Smith war Moralphilosoph und schrieb auch ein Buch über Mitgefühl, die „Theorie der ethischen Gefühle“.","merke":"Der Vater der Ökonomie war Philosoph."},{"id":"w7","c":"w","tag":"England · Börsengeschichte","anchor":"1720","title":"Newton verlor sein Geld an der Börse","body":"1720 stiegen die Aktien der South Sea Company in London in wenigen Monaten extrem, dann stürzten sie ab. Isaac Newton, damals Leiter der Münze, stieg zunächst mit Gewinn aus, kaufte später teuer wieder ein und verlor eine große Summe. Die Blase führte in England zum Bubble Act, der Aktiengesellschaften stark einschränkte.","merke":"Auch ein Genie kann dem Herdentrieb erliegen."},{"id":"w8","c":"w","tag":"Mittelalter · Nord- und Ostsee","anchor":"1356","title":"Die Hanse, ein Handelsnetz ohne Staat","body":"Die Hanse war ein Verbund von Kaufleuten und Städten im Nord- und Ostseeraum, Lübeck war lange ihr Zentrum. Sie hatte keine feste Verfassung und kein stehendes Heer, setzte aber Handelsprivilegien durch, notfalls mit Handelssperren und auch mit Krieg. Wichtige Kontore lagen in Brügge, London, Bergen und Nowgorod. Der erste Hansetag wird oft auf 1356 datiert.","merke":"Macht durch Verträge und Boykott statt durch eine Krone."},{"id":"w9","c":"w","tag":"Welthandel · Eurasien","anchor":"1877","title":"Die Seidenstraße hieß lange gar nicht so","body":"Den Namen Seidenstraße prägte 1877 der deutsche Geograf Ferdinand von Richthofen. Zeitgenossen kannten keine einzelne Straße, sondern ein Geflecht aus Routen und Zwischenhändlern. Kaum jemand reiste die ganze Strecke, die Waren wechselten viele Male den Besitzer. Neben Seide wanderten auch Gewürze, Glas, Metalle und Ideen.","merke":"Der Name ist jünger als die Sache."},{"id":"w10","c":"w","tag":"Weltwirtschaft · 20. Jahrhundert","anchor":"35 $","title":"Der Dollar und das Gold","body":"Im Juli 1944 einigten sich 44 Staaten in Bretton Woods auf ein neues Währungssystem. Der US-Dollar war an Gold gebunden, 35 Dollar für eine Unze, die anderen Währungen an den Dollar. 1971 beendete Präsident Nixon die Goldeinlösung. Seitdem schwanken die großen Währungen frei gegeneinander.","merke":"Heutiges Geld ist nicht mehr durch Gold gedeckt."},{"id":"p1","c":"p","tag":"Antike · Athen","anchor":"399 v. Chr.","title":"Was Sokrates wirklich wusste","body":"Der Satz „Ich weiß, dass ich nichts weiß“ wird Sokrates zugeschrieben, steht so aber nicht bei Platon. In der „Apologie“ erzählt Sokrates, das Orakel von Delphi habe ihn für den Weisesten erklärt. Er prüfte kluge Männer und merkte, dass sie zu wissen glaubten, was sie nicht wussten. Seine Weisheit sei, sein Nichtwissen zu kennen. 399 v. Chr. wurde er zum Tod verurteilt.","merke":"Weise ist, wer die Grenzen des eigenen Wissens kennt."},{"id":"p2","c":"p","tag":"Antike · Platon","anchor":"Schatten","title":"Die Höhle, in der wir sitzen","body":"In Platons „Politeia“ sitzen Menschen von Geburt an gefesselt in einer Höhle und sehen nur Schatten an der Wand. Sie halten diese Schatten für die ganze Wirklichkeit. Wird einer befreit und sieht das Sonnenlicht, ist er zuerst geblendet. Kehrt er zurück, glauben ihm die anderen nicht. Platon fragt damit, was Bildung ist und warum Wahrheit unbequem sein kann.","merke":"Bildung heißt, sich umzudrehen."},{"id":"p3","c":"p","tag":"Antike · Kynismus","anchor":"Tonne","title":"Diogenes und die Sonne","body":"Diogenes von Sinope lebte der Überlieferung nach in einem großen Tongefäß und verachtete Besitz. Als Alexander der Große ihn besuchte und ihm einen Wunsch anbot, soll Diogenes geantwortet haben, er möge ihm aus der Sonne gehen. Die Anekdote ist bei Plutarch und Diogenes Laertios überliefert, ob sie sich so zutrug, ist unsicher.","merke":"Freiheit beginnt bei wenigen Bedürfnissen."},{"id":"p4","c":"p","tag":"Rom · Stoa","anchor":"180 n. Chr.","title":"Der Kaiser, der sich selbst Notizen schrieb","body":"Marc Aurel regierte das Römische Reich und führte lange Kriege an der Donau. Nebenbei schrieb er Notizen für sich selbst, die später als „Selbstbetrachtungen“ bekannt wurden. Er erinnert sich darin daran, bescheiden zu bleiben, Ärger zu zügeln und die Vergänglichkeit zu akzeptieren. Sie waren nicht zur Veröffentlichung gedacht.","merke":"Ein Mann mit maximaler Macht übte täglich Selbstkontrolle."},{"id":"p5","c":"p","tag":"Antike · Epikureismus","anchor":"Garten","title":"Epikur war kein Partylöwe","body":"Epikur gründete um 306 v. Chr. in Athen eine Schule, den „Garten“. Für ihn war Lust das höchste Gut, doch er meinte damit vor allem Freiheit von Schmerz und Angst. Dazu gehörten einfache Speisen, Freundschaft und Gespräche. Das Wort „epikureisch“ für Schlemmerei beruht auf einem Missverständnis.","merke":"Genug zu haben ist ein größerer Luxus als viel."},{"id":"p6","c":"p","tag":"Identität · Plutarch","anchor":"Schiff","title":"Das Schiff des Theseus","body":"Plutarch erzählt von einem Schiff, das die Athener über Generationen erhielten, indem sie morsche Planken nach und nach ersetzten. Ist es nach dem Austausch aller Teile noch dasselbe Schiff? Und wenn man aus den alten Planken ein zweites baut, welches ist dann das echte? Dahinter steckt die Frage, was Identität ausmacht, bei Dingen wie bei Menschen, deren Körper sich ständig erneuert.","merke":"Bleibt etwas dasselbe, wenn sich alles ändert?"},{"id":"p7","c":"p","tag":"Neuzeit · Rationalismus","anchor":"1637","title":"Ich denke, also bin ich","body":"René Descartes suchte etwas, das sich nicht bezweifeln lässt. Er zweifelte an den Sinnen, an der Erinnerung, sogar an der Mathematik. Nur eines blieb: Dass er zweifelt, also denkt, und damit existiert. Erstmals schrieb er den Gedanken 1637 im „Discours de la méthode“ auf, auf Französisch. Die lateinische Formel „cogito, ergo sum“ folgte später.","merke":"Selbst wenn alles Täuschung wäre, wer wird dann getäuscht?"},{"id":"p8","c":"p","tag":"Aufklärung · Königsberg","anchor":"1784","title":"Habe Mut, dich deines Verstandes zu bedienen","body":"Immanuel Kant beantwortete 1784 die Frage „Was ist Aufklärung?“. Sie sei der Ausgang aus der selbstverschuldeten Unmündigkeit. Er forderte, den eigenen Verstand zu benutzen, und griff den lateinischen Wahlspruch „Sapere aude“ auf. Der Legende nach verließ Kant Königsberg kaum je, und die Nachbarn stellten ihre Uhren nach seinem täglichen Spaziergang.","merke":"Selber denken ist anstrengender als folgen."},{"id":"p9","c":"p","tag":"19. Jahrhundert · Nietzsche","anchor":"1882","title":"Gott ist tot, und das war keine Siegesmeldung","body":"Friedrich Nietzsche schrieb den Satz „Gott ist tot“ in „Die fröhliche Wissenschaft“, 1882. Er sagt ihn aber nicht als Triumph. In einem Gleichnis ruft ein „toller Mensch“ ihn auf dem Marktplatz aus und fragt entsetzt, was ohne diesen Halt noch Maßstab sein kann. Für Nietzsche war es die Diagnose einer Kultur, die ihren Glauben verloren hat und neue Werte erfinden muss.","merke":"Eine Diagnose, kein Jubel."},{"id":"p10","c":"p","tag":"Ethik · Gedankenexperiment","anchor":"5 gegen 1","title":"Das Trolley-Problem","body":"Eine Straßenbahn rast auf fünf Menschen zu. Du kannst eine Weiche umstellen, dann trifft sie nur einen. Tust du es? Die Philosophin Philippa Foot formulierte das Gedankenexperiment 1967. Viele sagen ja. Müsste man dafür aber einen Mann von einer Brücke stoßen, sagen die meisten nein, obwohl die Rechnung gleich bleibt. Warum, ist bis heute umstritten.","merke":"Rechnung und Gewissen kommen nicht immer zum selben Ergebnis."},{"id":"p11","c":"p","tag":"Antike · Eleaten","anchor":"Achilles","title":"Warum Achilles die Schildkröte nie einholt","body":"Zenon von Elea behauptete im 5. Jahrhundert v. Chr.: Achilles gibt einer Schildkröte einen Vorsprung. Bis er ihren Startpunkt erreicht, ist sie ein Stück weiter, und so geht es immer fort. Also holt er sie nie ein. Jeder weiß, dass das nicht stimmt, doch der Fehler ist schwer zu benennen. Eine überzeugende Antwort lieferte erst die Mathematik der unendlichen Reihen, viel später.","merke":"Unendlich viele Schritte können eine endliche Summe ergeben."}];
+  var CARDS_URL = '__CARDS_URL__';
+
+  var WIKI = 'https://de.wikipedia.org/api/rest_v1/';
+  var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+  /* Themen für „Entdecken“: Titel deutscher Wikipedia-Artikel. Nicht gefundene werden still übersprungen. */
+  var TITLES = {
+    g: ['Schlacht bei Marathon', 'Schlacht an den Thermopylen', 'Peloponnesischer Krieg', 'Alexander der Große', 'Hannibal', 'Schlacht bei Cannae',
+      'Gaius Iulius Caesar', 'Augustus', 'Nero', 'Pompeji', 'Bibliothek von Alexandria', 'Völkerwanderung', 'Karl der Große', 'Investiturstreit',
+      'Erster Kreuzzug', 'Schwarzer Tod', 'Hundertjähriger Krieg', 'Jeanne d’Arc', 'Johannes Gutenberg', 'Fall von Konstantinopel', 'Christoph Kolumbus',
+      'Martin Luther', 'Dreißigjähriger Krieg', 'Westfälischer Friede', 'Französische Revolution', 'Napoleon Bonaparte', 'Schlacht bei Waterloo',
+      'Wiener Kongress', 'Titanic', 'Erster Weltkrieg', 'Oktoberrevolution', 'Zweiter Weltkrieg', 'Mauerfall', 'Apollo 11', 'Kubakrise', 'Tutanchamun',
+      'Cheops-Pyramide', 'Hammurabi', 'Trojanischer Krieg', 'Perikles', 'Sparta', 'Römisches Reich', 'Byzantinisches Reich', 'Mongolisches Reich',
+      'Dschingis Khan', 'Marco Polo', 'Inka', 'Azteken', 'Kleopatra VII.', 'Spartakus', 'Wikinger', 'Hethiter', 'Qin Shi Huangdi', 'Große Mauer',
+      'Magna Carta', 'Pest von Athen', 'Olympische Spiele der Antike', 'Rosetta-Stein', 'Hexenverfolgung', 'Reformation'],
+    w: ['Tulpenmanie', 'Fugger', 'Jakob Fugger', 'Hanse', 'Seidenstraße', 'Bretton-Woods-System', 'Hyperinflation', 'Weltwirtschaftskrise',
+      'Schwarzer Donnerstag', 'Adam Smith', 'Karl Marx', 'John Maynard Keynes', 'Friedrich August von Hayek', 'Joseph Schumpeter', 'Milton Friedman',
+      'Ludwig Erhard', 'Soziale Marktwirtschaft', 'Inflation', 'Zentralbank', 'Europäische Zentralbank', 'Börse', 'Aktie', 'Anleihe', 'South Sea Company',
+      'Mississippi-Kompanie', 'Niederländische Ostindien-Kompanie', 'Lloyd’s of London', 'Rothschild', 'Medici', 'Merkantilismus', 'Industrielle Revolution',
+      'Fließband', 'Henry Ford', 'Spieltheorie', 'Gefangenendilemma', 'Tragik der Allmende', 'Komparativer Kostenvorteil', 'Bitcoin', 'Blockchain',
+      'Dotcom-Blase', 'Finanzkrise ab 2007', 'Lehman Brothers', 'Euro', 'Goldstandard', 'Mehrwertsteuer', 'Bruttoinlandsprodukt', 'Gini-Koeffizient',
+      'Kapitalismus', 'Sozialismus', 'Freihandel', 'Monopol', 'Kartell', 'Angebot und Nachfrage', 'Opportunitätskosten', 'Schwarzmarkt', 'Zinseszins',
+      'Hedgefonds', 'Versicherung', 'Mikrokredit'],
+    p: ['Sokrates', 'Platon', 'Aristoteles', 'Diogenes von Sinope', 'Epikur', 'Zenon von Kition', 'Stoa', 'Seneca', 'Marc Aurel', 'Augustinus von Hippo',
+      'Thomas von Aquin', 'Averroes', 'Avicenna', 'Ockhams Rasiermesser', 'René Descartes', 'Baruch de Spinoza', 'Gottfried Wilhelm Leibniz', 'John Locke',
+      'David Hume', 'Jean-Jacques Rousseau', 'Voltaire', 'Immanuel Kant', 'Kategorischer Imperativ', 'Georg Wilhelm Friedrich Hegel', 'Arthur Schopenhauer',
+      'Søren Kierkegaard', 'Friedrich Nietzsche', 'Ludwig Wittgenstein', 'Martin Heidegger', 'Jean-Paul Sartre', 'Simone de Beauvoir', 'Albert Camus',
+      'Hannah Arendt', 'Karl Popper', 'Höhlengleichnis', 'Trolley-Problem', 'Schiff des Theseus', 'Paradoxien des Zenon', 'Chinesisches Zimmer',
+      'Gedankenexperiment', 'Existenzialismus', 'Utilitarismus', 'Nihilismus', 'Konfuzius', 'Laozi', 'Siddhartha Gautama', 'Absurdismus', 'Sophistik',
+      'Pythagoras', 'Heraklit', 'Parmenides', 'Thales von Milet', 'Epiktet', 'Cicero', 'Niccolò Machiavelli', 'Thomas Hobbes', 'Adam Smith',
+      'Montesquieu', 'John Stuart Mill', 'Michel Foucault', 'Theodor W. Adorno', 'Hans Jonas', 'Peter Singer']
+  };
+
+  var LS_KEY = 'agora-v1';
+  var LS_REMOTE = 'agora-remote-v1';
+  var LS_WIKI = 'agora-wiki-v1';
+  var LS_DAY = 'agora-day-v1';
+  var state = { liked: {}, saved: {}, seen: {}, seed: 1 };
+  var remote = [];
+  var wiki = [];
+  var failed = {};
+  var wikiBusy = false;
+  var filter = 'all';
+  var busy = false;
+
+  var feedEl = document.getElementById('feed');
+  var chipsEl = document.getElementById('chips');
+  var statEl = document.getElementById('stat');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  var endEl = null;
+  var io = null;
+
+  /* ---------- Hilfsfunktionen ---------- */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+  function hash(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 2400);
+  }
+  function validCard(c) {
+    return c && typeof c === 'object' && typeof c.id === 'string' && CATS[c.c] &&
+      typeof c.title === 'string' && c.title.length > 0 &&
+      typeof c.body === 'string' && c.body.length > 20 &&
+      typeof c.anchor === 'string' && typeof c.tag === 'string' && typeof c.merke === 'string';
+  }
+  function pool() { return BASE.concat(remote, wiki); }
+
+  /* ---------- Speicher ---------- */
+  function persist() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignorieren */ }
+  }
+  function loadLocal() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        var o = JSON.parse(raw);
+        ['liked', 'saved', 'seen'].forEach(function (k) {
+          state[k] = {};
+          if (o && o[k] && typeof o[k] === 'object') for (var id in o[k]) if (o[k][id]) state[k][id] = 1;
+        });
+        if (o && typeof o.seed === 'number') state.seed = o.seed;
+      }
+    } catch (e) { /* leer */ }
+    try {
+      var rr = localStorage.getItem(LS_REMOTE);
+      if (rr) {
+        var a = JSON.parse(rr);
+        if (Array.isArray(a)) remote = a.filter(validCard);
+      }
+    } catch (e) { /* leer */ }
+    try {
+      var ww = localStorage.getItem(LS_WIKI);
+      if (ww) {
+        var b = JSON.parse(ww);
+        if (Array.isArray(b)) wiki = b.filter(validCard);
+      }
+    } catch (e) { /* leer */ }
+  }
+
+  function saveWiki() {
+    var keep = wiki.filter(function (c) { return state.saved[c.id] || state.liked[c.id]; });
+    var rest = wiki.filter(function (c) { return !(state.saved[c.id] || state.liked[c.id]); }).slice(-60);
+    wiki = wiki.filter(function (c) { return keep.indexOf(c) >= 0 || rest.indexOf(c) >= 0; });
+    try { localStorage.setItem(LS_WIKI, JSON.stringify(wiki)); } catch (e) { /* ignorieren */ }
+  }
+
+  /* ---------- Wikipedia: kostenlos, ohne Schlüssel ---------- */
+  function getJSON(url) {
+    if (typeof fetch !== 'function') return Promise.reject({ code: 'nofetch' });
+    return fetch(url, { headers: { 'Accept': 'application/json' } }).then(function (r) {
+      if (!r.ok) throw { code: 'http' };
+      return r.json();
+    });
+  }
+
+  function cleanExtract(t) {
+    return String(t || '').replace(/\s*\([^()]{0,160}\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  function cutText(t, max) {
+    if (t.length <= max) return t;
+    var best = -1, re = /[.!?](?=\s+[A-ZÄÖÜ„"])/g, m;
+    while ((m = re.exec(t)) !== null) {
+      var end = m.index + 1;
+      if (end > max) break;
+      var word = t.slice(0, m.index).split(/\s+/).pop();
+      if (word.length <= 3 || /^(Chr|bzw|usw|ca|etc|Prof|St)$/.test(word)) continue;
+      best = end;
+    }
+    if (best >= 120) return t.slice(0, best);
+    return t.slice(0, max - 1).replace(/\s+\S*$/, '') + '…';
+  }
+
+  function anchorFor(desc, ext, title) {
+    var s = (desc || '') + ' ' + (ext || '');
+    var m = s.match(/(\d{1,4})\s*[–-]\s*\d{1,4}\s*v\.\s*Chr\./) || s.match(/(\d{1,4})\s*v\.\s*Chr\./);
+    if (m) return m[1] + ' v. Chr.';
+    m = s.match(/\b(1[0-9]{3}|20[0-9]{2}|[5-9][0-9]{2})\b/);
+    if (m) return m[1];
+    var t = String(title || '');
+    return t.length <= 12 ? t : t.split(/\s+/)[0].slice(0, 12);
+  }
+
+  function pageUrl(p) {
+    var u = p && p.content_urls;
+    return (u && u.mobile && u.mobile.page) || (u && u.desktop && u.desktop.page) || '';
+  }
+
+  function discoverCard(cat, title, s) {
+    var ext = cutText(cleanExtract(s.extract), 480);
+    var desc = String(s.description || '');
+    var c = {
+      id: 'k_' + title,
+      c: cat,
+      tag: (desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : 'Wikipedia').slice(0, 60),
+      anchor: anchorFor(desc, s.extract, s.title || title).slice(0, 14),
+      title: String(s.title || title).slice(0, 80),
+      body: ext,
+      merke: 'Quelle: Wikipedia',
+      src: 'Wikipedia: ' + String(s.title || title),
+      url: pageUrl(s),
+      img: s.thumbnail && s.thumbnail.source ? String(s.thumbnail.source) : ''
+    };
+    return validCard(c) ? c : null;
+  }
+
+  function loadToday() {
+    var d = new Date();
+    var mm = ('0' + (d.getMonth() + 1)).slice(-2), dd = ('0' + d.getDate()).slice(-2);
+    var key = d.getFullYear() + mm + dd;
+    var stored = null;
+    try { stored = localStorage.getItem(LS_DAY); } catch (e) { /* leer */ }
+    if (stored === key) return Promise.resolve([]);
+    return getJSON(WIKI + 'feed/onthisday/selected/' + mm + '/' + dd).then(function (j) {
+      var ev = (j && (j.selected || j.events)) || [];
+      ev = ev.filter(function (e) { return e && typeof e.text === 'string' && typeof e.year === 'number' && e.pages && e.pages.length; });
+      var r = rng(hash(key));
+      ev.sort(function (a, b) {
+        var ta = a.pages[0].thumbnail ? 0 : 1, tb = b.pages[0].thumbnail ? 0 : 1;
+        return ta - tb || (r() - 0.5);
+      });
+      var out = [];
+      ev.forEach(function (e, i) {
+        if (out.length >= 5) return;
+        var years = d.getFullYear() - e.year - (e.year < 0 ? 1 : 0);
+        if (years <= 0) return;
+        var p = e.pages[0];
+        var ext = cutText(cleanExtract(p.extract), 260);
+        var text = e.text.charAt(e.text.length - 1) === '.' ? e.text : e.text + '.';
+        var c = {
+          id: 't' + key + '_' + i,
+          c: 'g',
+          tag: 'Heute in der Geschichte · ' + d.getDate() + '. ' + MONTHS[d.getMonth()],
+          anchor: e.year < 0 ? (-e.year) + ' v. Chr.' : String(e.year),
+          title: 'Heute vor ' + years + ' Jahren',
+          body: cutText(text + (ext ? ' ' + ext : ''), 560),
+          merke: 'Quelle: Wikipedia',
+          src: 'Wikipedia: ' + ((p.titles && p.titles.normalized) || p.title || 'Artikel'),
+          url: pageUrl(p),
+          img: p.thumbnail && p.thumbnail.source ? String(p.thumbnail.source) : ''
+        };
+        if (validCard(c)) out.push(c);
+      });
+      if (out.length) {
+        wiki = wiki.concat(out);
+        saveWiki();
+        try { localStorage.setItem(LS_DAY, key); } catch (e) { /* ignorieren */ }
+      }
+      return out;
+    });
+  }
+
+  function shuffled(a) {
+    var b = a.slice();
+    for (var i = b.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = b[i]; b[i] = b[j]; b[j] = t;
+    }
+    return b;
+  }
+
+  function loadMore() {
+    if (wikiBusy || filter === 'saved' || !endEl) return;
+    var cats = CATS[filter] ? [filter] : ['g', 'w', 'p'];
+    var per = CATS[filter] ? 6 : 2;
+    var used = {};
+    wiki.forEach(function (c) { used[c.id] = 1; });
+    var picks = [];
+    cats.forEach(function (k) {
+      shuffled(TITLES[k].filter(function (t) { return !used['k_' + t] && !failed[t]; })).slice(0, per).forEach(function (t) { picks.push({ k: k, t: t }); });
+    });
+    if (!picks.length) {
+      setStatus('Alle Themen entdeckt. Mische von vorn oder schau morgen wieder rein.');
+      return;
+    }
+    wikiBusy = true;
+    refreshGenButton();
+    setStatus('Lade neue Karten aus der Wikipedia …');
+    Promise.all(picks.map(function (p) {
+      return getJSON(WIKI + 'page/summary/' + encodeURIComponent(p.t.replace(/ /g, '_'))).then(function (s) {
+        return { p: p, s: s };
+      }).catch(function () { failed[p.t] = 1; return null; });
+    })).then(function (res) {
+      var fresh = [];
+      res.forEach(function (x) {
+        if (!x) return;
+        if (!x.s || !x.s.extract || x.s.type === 'disambiguation') { failed[x.p.t] = 1; return; }
+        var c = discoverCard(x.p.k, x.p.t, x.s);
+        if (c) fresh.push(c);
+      });
+      if (!fresh.length) { setStatus('Keine Verbindung oder keine Treffer. Versuche es später noch einmal.'); return; }
+      wiki = wiki.concat(fresh);
+      saveWiki();
+      setStatus('');
+      addCards(fresh, true);
+    }).catch(function () {
+      setStatus('Das hat nicht geklappt. Versuche es später noch einmal.');
+    }).then(function () {
+      wikiBusy = false;
+      refreshGenButton();
+    });
+  }
+
+  /* ---------- Karten vom Server ---------- */
+  function fetchRemote() {
+    if (typeof fetch !== 'function' || CARDS_URL.indexOf('__') >= 0) return Promise.reject({ code: 'nourl' });
+    return fetch(CARDS_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw { code: 'http' }; return r.json(); })
+      .then(function (arr) {
+        if (!Array.isArray(arr)) throw { code: 'format' };
+        var fresh = arr.filter(validCard);
+        var known = {};
+        remote.forEach(function (c) { known[c.id] = 1; });
+        var added = fresh.filter(function (c) { return !known[c.id]; });
+        remote = fresh;
+        try { localStorage.setItem(LS_REMOTE, JSON.stringify(remote)); } catch (e) { /* ignorieren */ }
+        return added;
+      });
+  }
+
+  function addCards(list, scroll) {
+    if (filter === 'saved' || !endEl) return null;
+    var first = null;
+    list.forEach(function (c) {
+      if (CATS[filter] && c.c !== filter) return;
+      var el = slide(c);
+      feedEl.insertBefore(el, endEl);
+      if (io) io.observe(el);
+      if (!first) first = el;
+    });
+    updateStat();
+    if (first && scroll) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return first;
+  }
+
+  function onNewCards(added) {
+    if (!added.length) return;
+    if (feedEl.scrollTop < 5 && filter !== 'saved') {
+      buildFeed();
+      toast(added.length + ' neue Karten');
+      return;
+    }
+    if (addCards(added, false)) toast(added.length + ' neue Karten am Ende');
+  }
+
+  function manualRefresh() {
+    fetchRemote().then(function (added) { onNewCards(added); }).catch(function () { /* offline */ });
+    loadMore();
+  }
+
+  /* ---------- Grafik pro Karte ---------- */
+  function art(c) {
+    var r = rng(hash(c.id));
+    var W = 400, H = 260, i, s;
+    s = '<svg class="svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMax slice" aria-hidden="true">';
+    if (c.c === 'g') {
+      var cx = 60 + r() * 280, cy = 50 + r() * 80, R = 44 + r() * 46;
+      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="currentColor" opacity=".16"/>';
+      for (i = 1; i <= 4; i++) {
+        s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (R + i * 16) + '" fill="none" stroke="currentColor" stroke-width="1.2" opacity="' + (0.36 - i * 0.07).toFixed(2) + '"/>';
+      }
+      var n = 3 + Math.floor(r() * 3);
+      for (i = 0; i < n; i++) {
+        var px = 24 + i * ((W - 48) / (n - 1)) - 8, ph = 70 + r() * 90;
+        s += '<rect x="' + px.toFixed(1) + '" y="' + (226 - ph).toFixed(1) + '" width="16" height="' + ph.toFixed(1) + '" fill="currentColor" opacity=".09"/>';
+      }
+      var d = '';
+      for (var x = -8; x < W + 32; x += 32) d += 'M' + x + ' 244v-16h20v12h-12v-6h6';
+      s += '<path d="M0 244H' + W + '" stroke="currentColor" stroke-width="2" opacity=".5"/>';
+      s += '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="2" opacity=".5"/>';
+    } else if (c.c === 'w') {
+      for (i = 1; i <= 5; i++) s += '<path d="M0 ' + (i * 42) + 'H' + W + '" stroke="currentColor" stroke-width="1" opacity=".13"/>';
+      var pts = [], y = 190, m = 14;
+      for (i = 0; i < m; i++) {
+        y -= (r() * 30 - 7);
+        y = Math.max(34, Math.min(222, y));
+        pts.push([(i * W / (m - 1)).toFixed(1), y.toFixed(1)]);
+      }
+      var line = pts.map(function (p, k) { return (k ? 'L' : 'M') + p[0] + ' ' + p[1]; }).join('');
+      s += '<path d="' + line + 'L' + W + ' ' + H + 'L0 ' + H + 'Z" fill="currentColor" opacity=".10"/>';
+      s += '<path d="' + line + '" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" opacity=".6"/>';
+      var last = pts[pts.length - 1];
+      s += '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="6" fill="currentColor" opacity=".8"/>';
+      for (i = 0; i < 3; i++) {
+        var coinR = 14 + r() * 14, coinX = 30 + r() * 340, coinY = 24 + r() * 70;
+        s += '<circle cx="' + coinX.toFixed(1) + '" cy="' + coinY.toFixed(1) + '" r="' + coinR.toFixed(1) + '" fill="none" stroke="currentColor" stroke-width="2" opacity=".4"/>';
+        s += '<circle cx="' + coinX.toFixed(1) + '" cy="' + coinY.toFixed(1) + '" r="' + (coinR * 0.6).toFixed(1) + '" fill="none" stroke="currentColor" stroke-width="1" opacity=".3"/>';
+      }
+    } else {
+      var bx = 130 + r() * 60, by = 90 + r() * 50, br = 70 + r() * 25;
+      var offs = [[0, 0], [br * 0.9, br * 0.2], [br * 0.45, -br * 0.7]];
+      offs.forEach(function (o) {
+        s += '<circle cx="' + (bx + o[0]).toFixed(1) + '" cy="' + (by + o[1]).toFixed(1) + '" r="' + br.toFixed(1) + '" fill="currentColor" opacity=".06" stroke="currentColor" stroke-width="1.5" stroke-opacity=".4"/>';
+      });
+      for (i = 0; i < 4; i++) {
+        var lx = r() * W, ang = r() * 40 - 20;
+        s += '<path d="M' + lx.toFixed(1) + ' 0L' + (lx + ang * 6).toFixed(1) + ' ' + H + '" stroke="currentColor" stroke-width="1" opacity=".14"/>';
+      }
+      for (i = 0; i < 16; i++) {
+        s += '<circle cx="' + (r() * W).toFixed(1) + '" cy="' + (r() * H).toFixed(1) + '" r="' + (1 + r() * 2).toFixed(1) + '" fill="currentColor" opacity="' + (0.25 + r() * 0.35).toFixed(2) + '"/>';
+      }
+      s += '<path d="M0 244H' + W + '" stroke="currentColor" stroke-width="1" opacity=".25"/>';
+    }
+    return s + '</svg>';
+  }
+
+  var ICON_HEART = '<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.5-9.2C1.3 8.6 3.2 5 6.6 5c2 0 3.6 1.1 5.4 3 1.8-1.9 3.4-3 5.4-3 3.4 0 5.3 3.6 4.1 6.8C19.5 16.4 12 21 12 21z"/></svg>';
+  var ICON_SAVE = '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
+  var ICON_SHARE = '<svg viewBox="0 0 24 24"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M5 13v6h14v-6"/></svg>';
+
+  function sizeClass(a) {
+    var n = a.length;
+    return n <= 5 ? 'xl' : n <= 8 ? 'l' : n <= 11 ? 'm' : 's';
+  }
+
+  function slide(c) {
+    var el = document.createElement('article');
+    el.className = 'slide';
+    el.dataset.id = c.id;
+    var cat = CATS[c.c];
+    el.innerHTML =
+      '<div class="card" style="--h:' + cat.h + '">' +
+        '<div class="art' + (c.img ? ' has-photo' : '') + '">' +
+          (c.img ? '<img class="photo" src="' + esc(c.img) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove(\'has-photo\');this.remove()">' : '') +
+          art(c) + '<div class="anchor ' + sizeClass(c.anchor) + '">' + esc(c.anchor) + '</div></div>' +
+        '<div class="txt">' +
+          '<div class="meta"><span class="cat">' + cat.n + '</span><span>' + esc(c.tag) + '</span></div>' +
+          '<h2>' + esc(c.title) + '</h2>' +
+          '<p class="body">' + esc(c.body) + '</p>' +
+          '<button class="more" type="button" aria-expanded="false">Mehr lesen</button>' +
+          (c.url
+            ? '<div class="merke"><b>Mehr</b><a class="src" href="' + esc(c.url) + '">' + esc(c.src || 'Wikipedia') + '</a></div>'
+            : '<div class="merke"><b>Merke</b>' + esc(c.merke) + '</div>') +
+        '</div>' +
+        '<div class="rail">' +
+          '<button class="like" type="button" aria-label="Gefällt mir" aria-pressed="false">' + ICON_HEART + '</button>' +
+          '<button class="save" type="button" aria-label="Speichern" aria-pressed="false">' + ICON_SAVE + '</button>' +
+          '<button class="share" type="button" aria-label="Text kopieren">' + ICON_SHARE + '</button>' +
+        '</div>' +
+      '</div>';
+    paintState(el, c.id);
+    return el;
+  }
+
+  function paintState(el, id) {
+    var like = el.querySelector('.like'), save = el.querySelector('.save');
+    if (!like || !save) return;
+    like.classList.toggle('on', !!state.liked[id]);
+    like.setAttribute('aria-pressed', state.liked[id] ? 'true' : 'false');
+    save.classList.toggle('on', !!state.saved[id]);
+    save.setAttribute('aria-pressed', state.saved[id] ? 'true' : 'false');
+  }
+
+  /* ---------- Feed ---------- */
+  function rank(c) {
+    var f = c.id.charAt(0);
+    return state.seen[c.id] ? 2 : ((f === 'r' || f === 't') ? 0 : 1);
+  }
+
+  function order(list) {
+    var r = rng(state.seed * 7919);
+    var groups = { g: [], w: [], p: [] };
+    list.forEach(function (c) { groups[c.c].push(c); });
+    Object.keys(groups).forEach(function (k) {
+      var a = groups[k];
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+    });
+    var out = [], more = true;
+    while (more) {
+      more = false;
+      ['g', 'w', 'p'].forEach(function (k) {
+        if (groups[k].length) { out.push(groups[k].shift()); more = true; }
+      });
+    }
+    return out.map(function (c, i) { return { c: c, i: i }; })
+      .sort(function (a, b) { return rank(a.c) - rank(b.c) || a.i - b.i; })
+      .map(function (x) { return x.c; });
+  }
+
+  function visibleList() {
+    var all = pool();
+    if (filter === 'saved') return all.filter(function (c) { return state.saved[c.id]; });
+    if (CATS[filter]) all = all.filter(function (c) { return c.c === filter; });
+    return order(all);
+  }
+
+  function buildFeed() {
+    if (io) io.disconnect();
+    feedEl.innerHTML = '';
+    var list = visibleList();
+    list.forEach(function (c) { feedEl.appendChild(slide(c)); });
+    endEl = null;
+    if (filter === 'saved' && !list.length) {
+      feedEl.appendChild(emptySlide());
+    } else if (filter !== 'saved') {
+      endEl = endSlide();
+      feedEl.appendChild(endEl);
+    }
+    feedEl.scrollTop = 0;
+    observe();
+    updateChrome();
+  }
+
+  function emptySlide() {
+    var el = document.createElement('article');
+    el.className = 'slide';
+    el.innerHTML = '<div class="card endcard" style="--h:262"><h2>Noch nichts gespeichert</h2><p>Tippe bei einer Karte auf das Lesezeichen, dann findest du sie hier wieder.</p></div>';
+    return el;
+  }
+
+  function endSlide() {
+    var el = document.createElement('article');
+    el.className = 'slide end';
+    var h = CATS[filter] ? CATS[filter].h : 32;
+    el.innerHTML =
+      '<div class="card endcard" style="--h:' + h + '">' +
+        '<h2>Mehr entdecken</h2>' +
+        '<p>Neue Karten aus der Wikipedia laden sich hier von selbst nach. Jeden Tag kommt „Heute in der Geschichte“ dazu.</p>' +
+        '<div class="btns">' +
+          '<button class="btn gen" type="button">Weitere Karten laden</button>' +
+          '<button class="btn ghost reshuffle" type="button">Von vorn mischen</button>' +
+        '</div>' +
+        '<p class="status" aria-live="polite"></p>' +
+      '</div>';
+    return el;
+  }
+
+  function refreshGenButton() {
+    if (!endEl) return;
+    var g = endEl.querySelector('.gen');
+    if (!g) return;
+    g.disabled = wikiBusy;
+    g.textContent = wikiBusy ? 'Lädt …' : 'Weitere Karten laden';
+  }
+
+  function setStatus(msg) {
+    if (!endEl) return;
+    var s = endEl.querySelector('.status');
+    if (s) s.textContent = msg || '';
+  }
+
+  function observe() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    io = new IntersectionObserver(function (entries) {
+      var changed = false;
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var el = en.target, id = el.dataset.id;
+        if (el.classList.contains('end')) { loadMore(); return; }
+        var more = el.querySelector('.more');
+        if (more && !more.dataset.checked) {
+          more.dataset.checked = '1';
+          var b = el.querySelector('.body');
+          if (b && b.scrollHeight <= b.clientHeight + 1) more.hidden = true;
+        }
+        if (id && !state.seen[id]) { state.seen[id] = 1; changed = true; }
+      });
+      if (changed) { persist(); updateStat(); }
+    }, { root: feedEl, threshold: 0.6 });
+    feedEl.querySelectorAll('.slide').forEach(function (el) { io.observe(el); });
+  }
+
+  function updateStat() {
+    var n = 0, all = pool();
+    all.forEach(function (c) { if (state.seen[c.id]) n++; });
+    statEl.textContent = n + ' von ' + all.length + ' gelesen';
+  }
+
+  function updateChrome() {
+    updateStat();
+    var savedN = 0;
+    for (var k in state.saved) if (state.saved[k]) savedN++;
+    var defs = [
+      { f: 'all', n: 'Für dich', h: null },
+      { f: 'g', n: 'Geschichte', h: CATS.g.h },
+      { f: 'w', n: 'Wirtschaft', h: CATS.w.h },
+      { f: 'p', n: 'Philosophie', h: CATS.p.h },
+      { f: 'saved', n: 'Gespeichert', h: null }
+    ];
+    chipsEl.innerHTML = defs.map(function (d) {
+      return '<button class="chip" type="button" data-f="' + d.f + '" aria-pressed="' + (filter === d.f ? 'true' : 'false') + '"' +
+        (d.h !== null ? ' style="--h:' + d.h + '"' : '') + '>' +
+        (d.h !== null ? '<i></i>' : '') + d.n +
+        (d.f === 'saved' && savedN ? ' <span class="n">' + savedN + '</span>' : '') + '</button>';
+    }).join('');
+  }
+
+  /* ---------- Interaktion ---------- */
+  function toggle(kind, id, slideEl) {
+    state[kind][id] = state[kind][id] ? 0 : 1;
+    if (!state[kind][id]) delete state[kind][id];
+    paintState(slideEl, id);
+    persist();
+    if (kind === 'saved') updateChrome();
+  }
+
+  function burst(slideEl, x, y) {
+    var card = slideEl.querySelector('.card');
+    var box = card.getBoundingClientRect();
+    var b = document.createElement('div');
+    b.className = 'burst';
+    b.style.left = (x - box.left) + 'px';
+    b.style.top = (y - box.top) + 'px';
+    b.innerHTML = ICON_HEART;
+    card.appendChild(b);
+    setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 800);
+  }
+
+  function copyText(text) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? 'Text kopiert' : 'Kopieren hat nicht geklappt');
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { toast('Text kopiert'); }, fallback);
+        return;
+      }
+    } catch (e) { /* weiter */ }
+    fallback();
+  }
+
+  function findCard(id) {
+    var all = pool();
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+    return null;
+  }
+
+  chipsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    filter = b.dataset.f;
+    buildFeed();
+  });
+
+  var lastTap = { t: 0, x: 0, y: 0 };
+  feedEl.addEventListener('click', function (e) {
+    var sl = e.target.closest('.slide');
+    if (!sl) return;
+    var id = sl.dataset.id;
+    var t = e.target.closest('button');
+    if (t) {
+      if (t.classList.contains('like')) return toggle('liked', id, sl);
+      if (t.classList.contains('save')) return toggle('saved', id, sl);
+      if (t.classList.contains('share')) {
+        var c = findCard(id);
+        if (c) copyText(c.title + '\n\n' + c.body + '\n\nMerke: ' + c.merke + '\n(Agora)');
+        return;
+      }
+      if (t.classList.contains('more')) {
+        var open = sl.querySelector('.card').classList.toggle('open');
+        t.textContent = open ? 'Weniger' : 'Mehr lesen';
+        t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        return;
+      }
+      if (t.classList.contains('gen')) return manualRefresh();
+      if (t.classList.contains('reshuffle')) {
+        state.seed += 1; state.seen = {}; persist(); buildFeed(); return;
+      }
+      return;
+    }
+    if (!id) return;
+    var now = Date.now();
+    if (now - lastTap.t < 320 && Math.abs(e.clientX - lastTap.x) < 40 && Math.abs(e.clientY - lastTap.y) < 40) {
+      if (!state.liked[id]) toggle('liked', id, sl);
+      burst(sl, e.clientX, e.clientY);
+      lastTap.t = 0;
+    } else {
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
+  });
+
+  /* ---------- Start ---------- */
+  loadLocal();
+  buildFeed();
+  loadToday().then(function (added) { onNewCards(added); }).catch(function () { /* offline: vorhandene Karten reichen */ });
+  fetchRemote().then(function (added) { onNewCards(added); }).catch(function () { /* offline: vorhandene Karten reichen */ });
+})();
+
+</script>
+</body>
+</html>
